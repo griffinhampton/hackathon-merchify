@@ -69,6 +69,18 @@ export default function ShirtCustomizer() {
     controls.target.set(0, 0, 0)
     controlsRef.current = controls
 
+    // Allow slight zoom with mouse wheel when hovering the canvas
+    const initialCameraZ = camera.position.z
+    const minCameraZ = initialCameraZ * 0.6
+    const maxCameraZ = initialCameraZ * 1.6
+    const onWheel = (e) => {
+      e.preventDefault()
+      const deltaZ = e.deltaY * 0.002
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z + deltaZ, minCameraZ, maxCameraZ)
+      controls.update()
+    }
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false })
+
     // Lights
     const ambient = new THREE.AmbientLight(0xffffff, 0.6)
     scene.add(ambient)
@@ -127,6 +139,9 @@ export default function ShirtCustomizer() {
     return () => {
       cancelAnimationFrame(frameId)
       window.removeEventListener('resize', handleResize)
+      try {
+        renderer.domElement.removeEventListener('wheel', onWheel)
+      } catch (e) {}
       if (mount && renderer.domElement.parentElement === mount) {
         mount.removeChild(renderer.domElement)
       }
@@ -139,7 +154,7 @@ export default function ShirtCustomizer() {
     updateTexture()
   }, [overlays, shirtColor])
 
-  const updateTexture = () => {
+  const updateTexture = (overlaysToRender = overlays) => {
     if (!meshRef.current) return
 
     // Create or get texture canvas
@@ -175,7 +190,7 @@ export default function ShirtCustomizer() {
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     // Draw all overlays
-    overlays.forEach((overlay) => {
+    overlaysToRender.forEach((overlay) => {
       const x = overlay.position.x * canvas.width
       const y = (1 - overlay.position.y) * canvas.height // Flip Y for texture coordinates
 
@@ -199,24 +214,56 @@ export default function ShirtCustomizer() {
         tempCanvas.width = w
         tempCanvas.height = h
         const tempCtx = tempCanvas.getContext('2d')
+        
+        // Ensure image is drawn with proper crossOrigin handling
         tempCtx.drawImage(overlay.imageElement, 0, 0, w, h)
         
-        // Get image data and make navy blue transparent
-        const imageData = tempCtx.getImageData(0, 0, w, h)
+        // Get image data and make navy blue transparent (robust)
+        let imageData
+        try {
+          imageData = tempCtx.getImageData(0, 0, w, h)
+        } catch (err) {
+          console.warn('getImageData failed, skipping navy transparency:', err)
+          ctx.drawImage(overlay.imageElement, -w / 2, -h / 2, w, h)
+          ctx.restore()
+          return
+        }
+
         const data = imageData.data
-        
+        let transparentPixels = 0
+
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i]
           const g = data[i + 1]
           const b = data[i + 2]
-          
-          // Check for navy blue (dark blue colors)
-          // Navy blue is roughly RGB(0-40, 0-40, 80-140)
+          const a = data[i + 3]
+
+          if (r === 0 && g === 0 && b === 128) {
+            data[i + 3] = 0
+            transparentPixels++
+            continue
+          }
+
           if (r < 50 && g < 50 && b > 60 && b < 150) {
-            data[i + 3] = 0 // Set alpha to 0 (transparent)
+            data[i + 3] = 0
+            transparentPixels++
+            continue
+          }
+
+          const blueDominance = Math.max(b - r, b - g)
+          if (b > 60 && blueDominance > 20) {
+            data[i + 3] = 0
+            transparentPixels++
+          } else if (b > 60 && blueDominance > 8) {
+            const factor = (blueDominance - 8) / (20 - 8)
+            data[i + 3] = Math.round(a * (1 - Math.min(1, factor)))
           }
         }
-        
+
+        if (transparentPixels > 0) {
+          console.log(`Made ${transparentPixels} pixels transparent out of ${data.length / 4} total pixels`)
+        }
+
         tempCtx.putImageData(imageData, 0, 0)
         ctx.drawImage(tempCanvas, -w / 2, -h / 2, w, h)
       }
@@ -484,9 +531,18 @@ export default function ShirtCustomizer() {
               rotation: 0,
               scale: 0.25 // 25% scale
             }
+            
+            console.log('Added generated frame as overlay:', newOverlay)
+            
+            // Immediately update texture with the new overlay before setting state
+            setTimeout(() => {
+              if (meshRef.current) {
+                updateTexture([newOverlay])
+              }
+            }, 200)
+            
             setOverlays([newOverlay])
             setSelectedOverlay(0) // Auto-select the newly added frame
-            console.log('Added generated frame as overlay:', newOverlay)
           }
           img.onerror = () => {
             console.error('Failed to load generated frame:', frameUrl)

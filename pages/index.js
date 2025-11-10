@@ -10,33 +10,88 @@ function LoadingGame() {
   const [letters, setLetters] = useState([])
   const [damagePopups, setDamagePopups] = useState([])
   const [gameOver, setGameOver] = useState(false)
+  const [loadingDots, setLoadingDots] = useState(1)
   const gameRef = useRef(null)
   const letterIdCounter = useRef(0)
-  const availableLetters = ['icon.png', 'y-letter.png'] // M and Y for now
+  const availableLetters = [
+    'icon.png', 
+    'y-letter.png',
+    'c-letter.PNG',
+    'e-letter.PNG',
+    'f-letter.PNG',
+    'h-letter.PNG',
+    'i-letter.PNG',
+    'r-letter.PNG'
+  ]
+
+  // Animate loading dots
+  useEffect(() => {
+    const dotsInterval = setInterval(() => {
+      setLoadingDots(prev => prev === 3 ? 1 : prev + 1)
+    }, 500)
+    return () => clearInterval(dotsInterval)
+  }, [])
 
   useEffect(() => {
-    // Spawn letters every 1-2 seconds
+    // Spawn multiple letters every 0.5-1 seconds
     const spawnInterval = setInterval(() => {
-      const newLetter = {
-        id: letterIdCounter.current++,
-        x: Math.random() * (window.innerWidth - 60),
-        y: -60,
-        vx: (Math.random() - 0.5) * 2,
-        vy: Math.random() * 2 + 1,
-        health: 2,
-        image: availableLetters[Math.floor(Math.random() * availableLetters.length)],
-        rotation: Math.random() * 360
-      }
-      setLetters(prev => [...prev, newLetter])
-    }, Math.random() * 1000 + 1000)
+      setLetters(prev => {
+        // Only spawn if we have less than 4 letters on screen
+        if (prev.length >= 4) return prev
+        
+        const numLetters = Math.floor(Math.random() * 3) + 1 // Spawn 1-3 letters at once
+        const newLetters = []
+        
+        for (let i = 0; i < numLetters; i++) {
+          // Don't exceed max of 4 letters
+          if (prev.length + newLetters.length >= 4) break
+          
+          // Random direction: 0=top, 1=right, 2=bottom, 3=left
+          const direction = Math.floor(Math.random() * 4)
+          let x, y, vx, vy
+          
+          switch(direction) {
+            case 0: // From top
+              x = Math.random() * window.innerWidth
+              y = -60
+              break
+            case 1: // From right
+              x = window.innerWidth + 60
+              y = Math.random() * window.innerHeight
+              break
+            case 2: // From bottom
+              x = Math.random() * window.innerWidth
+              y = window.innerHeight + 60
+              break
+            case 3: // From left
+              x = -60
+              y = Math.random() * window.innerHeight
+              break
+          }
+          
+          newLetters.push({
+            id: letterIdCounter.current++,
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 2,
+            vy: Math.random() * 2 + 1,
+            health: 2,
+            image: availableLetters[Math.floor(Math.random() * availableLetters.length)],
+            rotation: Math.random() * 360
+          })
+        }
+        
+        return [...prev, ...newLetters]
+      })
+    }, Math.random() * 500 + 500)
 
     // Animation loop
     const animationLoop = setInterval(() => {
       setLetters(prev => prev.map(letter => {
         const centerX = window.innerWidth / 2
-        const centerY = window.innerHeight / 2
+        const centerY = window.innerHeight / 2 - 60 // Target "now loading..." text position
         
-        // Move towards loading bar (center)
+        // Move towards "now loading..." text
         const dx = centerX - letter.x
         const dy = centerY - letter.y
         const distance = Math.sqrt(dx * dx + dy * dy)
@@ -47,7 +102,7 @@ function LoadingGame() {
           letter.y += (dy / distance) * speed
           letter.rotation += 2
         } else {
-          // Collided with loading bar
+          // Collided with "now loading..." text
           if (!letter.collided) {
             letter.collided = true
             setPlayerHealth(h => {
@@ -83,16 +138,31 @@ function LoadingGame() {
   }, [])
 
   const handleLetterClick = (letterId) => {
+    let clickedLetter = null;
     setLetters(prev => prev.map(letter => {
       if (letter.id === letterId) {
-        const newHealth = letter.health - 1
+        clickedLetter = letter;
+        const newHealth = letter.health - 1;
         if (newHealth <= 0) {
-          return null // Remove letter
+          return null; // Remove letter
         }
-        return { ...letter, health: newHealth }
+        return { ...letter, health: newHealth };
       }
-      return letter
-    }).filter(Boolean))
+      return letter;
+    }).filter(Boolean));
+    // Add green money popup at letter position
+    if (clickedLetter) {
+      setDamagePopups(prev => [
+        ...prev,
+        {
+          id: Math.random(),
+          x: clickedLetter.x + 25, // center of letter
+          y: clickedLetter.y,
+          time: Date.now(),
+          type: 'money'
+        }
+      ]);
+    }
   }
 
   return (
@@ -102,7 +172,7 @@ function LoadingGame() {
       left: 0,
       right: 0,
       bottom: 0,
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#f5f5f5',
       overflow: 'hidden',
       zIndex: 10000,
       cursor: gameOver ? 'default' : 'crosshair'
@@ -128,7 +198,12 @@ function LoadingGame() {
           <img 
             src={`/assets/${letter.image}`} 
             alt="letter" 
-            style={{ width: '100%', height: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+              animation: 'letterSpin 2s linear infinite'
+            }}
             draggable="false"
           />
           {/* Letter health bar */}
@@ -155,10 +230,31 @@ function LoadingGame() {
 
       {/* Damage Popups */}
       {damagePopups.map(popup => {
-        const age = Date.now() - popup.time
-        const opacity = 1 - (age / 1000)
-        const yOffset = age / 10
-        
+        const age = Date.now() - popup.time;
+        const opacity = 1 - (age / 1000);
+        const yOffset = age / 10;
+        if (popup.type === 'money') {
+          return (
+            <div
+              key={popup.id}
+              style={{
+                position: 'absolute',
+                left: `${popup.x}px`,
+                top: `${popup.y - yOffset}px`, // same as -1 popup
+                color: '#00ff00',
+                fontSize: '2rem',
+                fontWeight: '900',
+                opacity: opacity,
+                pointerEvents: 'none',
+                textShadow: '0 0 12px #00ff00, 2px 2px 4px rgba(0,0,0,0.8)',
+                transform: 'translateX(-50%)',
+              }}
+            >
+              +$0.0001
+            </div>
+          );
+        }
+        // Default damage popup
         return (
           <div
             key={popup.id}
@@ -166,7 +262,7 @@ function LoadingGame() {
               position: 'absolute',
               left: `${popup.x}px`,
               top: `${popup.y - yOffset}px`,
-              color: '#ff4757',
+              color: '#d97676',
               fontSize: '2rem',
               fontWeight: '900',
               opacity: opacity,
@@ -177,7 +273,7 @@ function LoadingGame() {
           >
             -1
           </div>
-        )
+        );
       })}
 
       {/* Loading Bar (Player) - Centered */}
@@ -186,83 +282,96 @@ function LoadingGame() {
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        width: '400px',
+        width: '300px',
         textAlign: 'center'
       }}>
         {!gameOver ? (
           <>
+            {/* "now loading..." text above health bar */}
+            <div style={{
+              fontSize: '1.5rem',
+              color: '#000',
+              fontWeight: '700',
+              letterSpacing: '2px',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
+              marginBottom: '20px'
+            }}>
+              now loading{'.'.repeat(loadingDots)}
+            </div>
+            
             <div style={{
               width: '100%',
-              height: '40px',
+              height: '12px',
               background: '#000',
-              border: '3px solid #fff',
-              borderRadius: '20px',
+              border: '2px solid #fff',
+              borderRadius: '6px',
               overflow: 'hidden',
-              boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
               position: 'relative'
             }}>
-              <div style={{
-                width: `${(playerHealth / 15) * 100}%`,
-                height: '100%',
-                background: playerHealth > 10 ? '#aed13a' : playerHealth > 5 ? '#ffb74d' : '#ff4757',
-                transition: 'width 0.3s, background 0.3s',
-                borderRadius: '17px',
-                position: 'relative',
-                overflow: 'hidden'
-              }}>
-                {/* Animated shine effect */}
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '-100%',
-                  width: '100%',
-                  height: '100%',
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-                  animation: 'shine 2s infinite'
-                }}></div>
-              </div>
-              {/* Health text */}
+            <div style={{
+              width: `${(playerHealth / 15) * 100}%`,
+              height: '100%',
+              background: playerHealth > 10 ? '#aed13a' : playerHealth > 5 ? '#ffb74d' : '#d97676',
+              transition: 'width 0.3s, background 0.3s',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Animated scrolling stripes */}
               <div style={{
                 position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                color: '#fff',
-                fontWeight: '900',
-                fontSize: '1.2rem',
-                textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                pointerEvents: 'none'
-              }}>
-                {playerHealth}/15
-              </div>
+                top: 0,
+                left: 0,
+                width: '200%',
+                height: '100%',
+                background: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.2) 10px, rgba(255,255,255,0.2) 20px)',
+                animation: 'scroll 1s linear infinite'
+              }}></div>
             </div>
-            <p style={{
-              marginTop: '1rem',
-              color: '#fff',
-              fontSize: '1.2rem',
-              fontWeight: '600',
-              textShadow: '2px 2px 4px rgba(0,0,0,0.5)'
-            }}>
-              Click the letters to defend! (2 clicks each)
-            </p>
+          </div>
           </>
         ) : (
           <h1 style={{
             fontSize: '4rem',
-            color: '#fff',
+            color: '#000',
             fontWeight: '900',
-            textShadow: '4px 4px 8px rgba(0,0,0,0.5)',
             marginTop: '-20px'
           }}>
             now what...
           </h1>
         )}
       </div>
+      
+      {/* Loaded Message */}
+      {!gameOver && playerHealth === 15 && letters.length === 0 && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, calc(-50% + 40px))',
+          fontSize: '1.5rem',
+          color: '#aed13a',
+          fontWeight: '900',
+          textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
+          animation: 'fadeIn 0.5s'
+        }}>
+        </div>
+      )}
 
-      <style jsx>{`
-        @keyframes shine {
-          0% { left: -100%; }
-          100% { left: 200%; }
+      <style jsx global>{`
+        @keyframes scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        
+        @keyframes fadeIn {
+          0% { opacity: 0; transform: translate(-50%, calc(-50% + 50px)); }
+          100% { opacity: 1; transform: translate(-50%, calc(-50% + 40px)); }
+        }
+        
+        @keyframes letterSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
     </div>
@@ -289,6 +398,7 @@ export default function Home() {
   const [videoSource, setVideoSource] = useState('youtube') // 'youtube', 'tiktok', 'instagram', 'local'
   const [localFile, setLocalFile] = useState(null)
   const [selectedFileName, setSelectedFileName] = useState('')
+  const [promptText, setPromptText] = useState('')
   const playerRef = useRef(null)
   const videoRef = useRef(null) // For HTML5 video
   const timelineRef = useRef(null)
@@ -734,6 +844,7 @@ export default function Home() {
         formData.append('startTime', formatTime(timestamp[0]))
         formData.append('endTime', formatTime(timestamp[1]))
         formData.append('duration', formatTime(timestamp[1] - timestamp[0]))
+        formData.append('prompt',)
         formData.append('source', 'local')
         formData.append('originalFilename', localFile.name)
         
@@ -784,6 +895,7 @@ export default function Home() {
           //endTime: formatTime(timestamp[1]),
           duration: formatTime(timestamp[1]-timestamp[0]),
           videoSource: videoSource,
+          prompt: "",
           //selectionMode: selectionMode
         }
         
@@ -932,16 +1044,18 @@ export default function Home() {
             const r = data[i]
             const g = data[i + 1]
             const b = data[i + 2]
-            
+            // Make exact #000080 fully transparent
+            if (r === 0 && g === 0 && b === 128) {
+              data[i + 3] = 0;
+            }
             // Check if pixel is grey (R, G, B values are similar and in grey range)
-            const avg = (r + g + b) / 3
-            const variance = Math.abs(r - avg) + Math.abs(g - avg) + Math.abs(b - avg)
-            
+            const avg = (r + g + b) / 3;
+            const variance = Math.abs(r - avg) + Math.abs(g - avg) + Math.abs(b - avg);
             // If it's a grey color (low variance between RGB channels)
             if (variance < 30 && avg > 100 && avg < 220) {
-              data[i] = 255     // R
-              data[i + 1] = 255 // G
-              data[i + 2] = 255 // B
+              data[i] = 255;     // R
+              data[i + 1] = 255; // G
+              data[i + 2] = 255; // B
             }
           }
           
@@ -2260,6 +2374,36 @@ export default function Home() {
                       </>
                     )}
                   </div>
+                </div>
+
+                {/* Prompt Input */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ 
+                    color: '#000', 
+                    display: 'block', 
+                    marginBottom: '0.5rem',
+                    fontWeight: '600',
+                  }}>
+                    AI Prompt (Optional)
+                  </label>
+                  <textarea
+                    value={promptText}
+                    onChange={(e) => setPromptText(e.target.value)}
+                    placeholder="Describe what you want to generate from this video..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: '#fff',
+                      border: '2px solid #000',
+                      borderRadius: '8px',
+                      color: '#000',
+                      fontSize: '1rem',
+                      fontWeight: '700',
+                      fontFamily: "'mono45-headline', monospace, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
+                      resize: 'vertical',
+                    }}
+                  />
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
