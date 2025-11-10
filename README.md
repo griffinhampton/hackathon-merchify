@@ -89,6 +89,14 @@ Features implemented in this repo
 - Small local login system (localStorage) to save and restore user designs
 - Checkout wiring (Stripe placeholder) and upload/processing pipeline wiring (Mux placeholder)
 
+Additional 3D asset work and scope
+----------------------------------
+- Asset count & scope: this project includes five primary product models (T‑shirt, pants, hat, cup, propane tank) plus supporting props and variants used throughout the site and marketing visuals.
+- Blender & UV work: all models were created or optimized in Blender — topology cleanup, UV unwrapping, texture placement, and baking where needed. Landon provided the UV maps and additional models; Griffin placed generated art onto the Blender textures prior to export so the frontend could load ready-to-use texture assets.
+- Optimization & export: meshes were optimized for web delivery (basic retopology, poly/face reduction where necessary), baked or exported as glTF/GLB, and verified in Three.js scenes with proper UV placement and material setup.
+- Runtime customization: the frontend uses those UV maps to dynamically draw user overlays (generated art, user uploads, and text) onto a texture canvas which is uploaded as the product texture in Three.js. This required careful UV alignment and canvas-to-texture mapping to ensure the generated art sits exactly where expected on each product.
+- Engineering impact: significant time was spent on 3D asset pipeline work (model cleanup, UV mapping, bake/export, glTF conversion) in addition to the frontend integration — this 3D experience and Three.js expertise were repeatedly highlighted by interviewers/employers during demos.
+
 Running locally
 ---------------
 # NOT POSSIBLE WITHOUT ME SETTING IT UP, SOZ!! CHECK OUT THE DEMO VIDEO AT THE BOTTOM
