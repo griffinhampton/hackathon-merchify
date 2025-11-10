@@ -32,7 +32,7 @@ High-level summary
 ------------------
 - Frontend: Next.js + Three.js — a single-page product catalog and multiple product customizers (t-shirt, hat, cup, propane tank). The front-end, UI design, and product customization experience were authored by Griffin Hampton.
 - Backend (separate Java/Spring service): downloads/clips videos, extracts frames, transcribes audio (GPT‑4), and asks an image generator (NanoBanana) to produce images using video context. Wyatt Lang built and connected the backend logic and transcription flow.
-- Assets: 3D models and UV maps were created/optimized in Blender by Landon Pantoja (also authored hat, cup, and propane tank models). Griffin placed generated images onto the Blender textures in the locations used by the site and wired interactivity in the front end.
+- Assets: 3D models and UV maps were created/optimized in Blender by Landon Pantoja (also authored hat, cup, and propane tank models). Griffin placed generated images onto the Blender textures in the locations used by the site via UV Mapping and wired interactivity in the front end. He also fed the blender files through a custom Java pipeline to make them easily accessible. 
 - Image generation: generated frames are produced by an image generation service (NanoBanana in our flow) using an ImageGen request that includes transcription context and a prompt.
 - Integrations / wireframes: Mux (video upload pipeline), Stripe (checkout), Supabase (placeholder helper / data store) — currently scaffolded as placeholder routes in the repo.
 
